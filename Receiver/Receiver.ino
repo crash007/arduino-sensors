@@ -12,25 +12,22 @@
 
 const int led_pin = 13;
 const int transmit_pin = 12;
-const int receive_pin = 8;
 const int transmit_en_pin = 3;
 
 
-#define RF_VCC 10
-#define RF_GND 15
+#define RF_VCC 8
+#define RF_GND 5
 #define RF_RECEIVE 7
 
 
 void setup()
 {
     //RF
-   // pinMode(RF_VCC,OUTPUT);
-   // pinMode(RF_GND,OUTPUT);
-    pinMode(RF_RECEIVE,INPUT);
-    //pinMode(8,INPUT);
+    pinMode(RF_VCC,OUTPUT);
+    pinMode(RF_GND,OUTPUT);
     
-    //digitalWrite(RF_VCC,HIGH);
-    //digitalWrite(RF_GND,LOW);
+    digitalWrite(RF_VCC,HIGH);
+    digitalWrite(RF_GND,LOW);
    
     delay(1000);
     Serial.begin(9600);	// Debugging only

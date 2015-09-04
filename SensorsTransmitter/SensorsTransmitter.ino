@@ -11,11 +11,11 @@
 #include <VirtualWire.h>
 #include <stdlib.h>
 
-#define DHT_VCC 4
-#define DHT_GND 6
+#define DHT_VCC 6
+#define DHT_GND 4
 #define DHTPIN 5
 
-#define DHTTYPE DHT11   // DHT 11 
+#define DHTTYPE DHT22   // DHT 11 
 DHT dht(DHTPIN, DHTTYPE);
 
 
@@ -40,6 +40,10 @@ const int led_pin = 13;
 #define RF_PTT_PIN 2
 #define RF_RX_PIN 3
 
+#define SOIL_VCC A1
+#define SOIL_GND A2
+#define SOIL_DATA A3
+
 char buff[20];
 
 void setup() {
@@ -55,12 +59,20 @@ void setup() {
   pinMode(DHT_VCC,OUTPUT);
   pinMode(DHT_GND,OUTPUT);
   digitalWrite(DHT_GND,LOW);
+  digitalWrite(DHT_VCC,HIGH);
   
   //DS18b20
   pinMode(DS18b20_VCC,OUTPUT);
   pinMode(DS18b20_GND,OUTPUT);
   digitalWrite(DS18b20_VCC,HIGH);
   digitalWrite(DS18b20_GND,LOW);
+
+  //SOil mouisture
+  pinMode(SOIL_VCC,OUTPUT);
+  pinMode(SOIL_GND,OUTPUT);
+  digitalWrite(SOIL_VCC,HIGH);
+  digitalWrite(SOIL_GND,LOW);
+
   
   vw_set_tx_pin(RF_TX);
   vw_set_ptt_pin(RF_PTT_PIN);
@@ -82,17 +94,40 @@ void setup() {
 void loop(void) {
 
   dht11ReadSend();
-  //LowPower.powerDown(SLEEP_500MS, ADC_OFF, BOD_OFF); 
+  LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF); 
   ds18b20ReadSend();
+  LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF); 
+  soilMoistReadSend();
   
-  const char *msg = "Hello";
-  digitalWrite(led_pin, HIGH); // Flash a light to show transmitting
-   vw_send((uint8_t *)msg, strlen(msg)); // Send control character 
-   vw_wait_tx(); // Wait until the whole message is gone
-   digitalWrite(led_pin, LOW);
- // LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF); 
+//  const char *msg = "Hello";
+//  digitalWrite(led_pin, HIGH); // Flash a light to show transmitting
+//   vw_send((uint8_t *)msg, strlen(msg)); // Send control character 
+//   vw_wait_tx(); // Wait until the whole message is gone
+//   digitalWrite(led_pin, LOW);
+  LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF); 
+
+ 
 
 }
+
+void soilMoistReadSend(){
+  int soilMoist = analogRead(SOIL_DATA);
+  soilMoist = map(soilMoist,0,1023,100,0);
+  Serial.print("Soil moist:");
+  Serial.println(soilMoist);
+  sprintf(buff,"d%d",soilMoist);
+  Serial.println(buff);
+  sendToServer(buff);
+}
+
+
+void sendToServer(char buff[]){
+   digitalWrite(led_pin, HIGH);
+  vw_send((uint8_t *)buff, strlen(buff)); // Send control character 
+  vw_wait_tx(); // Wait until the whole message is gone
+  digitalWrite(led_pin, LOW);
+}
+
 
 void ds18b20ReadSend(){
   
@@ -101,30 +136,22 @@ void ds18b20ReadSend(){
 
   char ds18b20tempChar[20]; 
   dtostrf(ds18b20temp,6, 2, ds18b20tempChar);
-  //sprintf(buff,"DS18B20:%s",ds18b20tempChar);
+  
  sprintf(buff,"c%s",ds18b20tempChar);
 
- Serial.println(ds18b20temp);
-  Serial.print(buff);
-  
-  digitalWrite(led_pin, HIGH);
-  vw_send((uint8_t *)buff, strlen(buff)); // Send control character 
-  vw_wait_tx(); // Wait until the whole message is gone
-  digitalWrite(led_pin, LOW);
+  Serial.println(buff);
+  sendToServer(buff);
   
 }
 
 void dht11ReadSend(){
-  //start sensor
-  digitalWrite(DHT_VCC,HIGH);
-  dht.begin();
   
-  LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF); //Wait for the sensor
+  dht.begin();
  
-  int humidity = dht.readHumidity();
-  int temp = dht.readTemperature();
+ 
+  float humidity = dht.readHumidity();
+  float temp = dht.readTemperature();
   //float f = dht.readTemperature(true);
-  digitalWrite(DHT_VCC,LOW); //shutdown sensor
   
   Serial.print("Humidity: ");
   Serial.println(humidity);
@@ -134,21 +161,20 @@ void dht11ReadSend(){
   if (!isnan(humidity) && !isnan(temp)) {
    
    //sprintf(buff,"DHT11:T:%d",temp);
-   sprintf(buff,"a%d",temp);
-   Serial.print(buff);
-   digitalWrite(led_pin, HIGH); // Flash a light to show transmitting
-   vw_send((uint8_t *)buff, strlen(buff)); // Send control character 
-   vw_wait_tx(); // Wait until the whole message is gone
-   digitalWrite(led_pin, LOW);
-   LowPower.powerDown(SLEEP_500MS, ADC_OFF, BOD_OFF); //Wait for the server
+   //sprintf(buff,"a%d",temp);
+
+   char tmp[20]; 
+    dtostrf(temp,6, 2, tmp);
+    sprintf(buff,"a%s",tmp);
+   Serial.println(buff);
+   sendToServer(buff);
+   LowPower.powerDown(SLEEP_1S, ADC_OFF, BOD_OFF); //Wait for the server
    
    //sprintf(buff,"DHT11:H:%d",humidity);
-   sprintf(buff,"b%d",humidity);
-   
-   digitalWrite(led_pin, HIGH);
-   vw_send((uint8_t *)buff, strlen(buff)); // Send
-   vw_wait_tx(); // Wait until the whole message is gone
-   digitalWrite(led_pin, LOW);
+   //sprintf(buff,"b%d",humidity);
+    dtostrf(humidity,6, 2, tmp);
+    sprintf(buff,"b%s",tmp);
+    sendToServer(buff);
   
   }
 
