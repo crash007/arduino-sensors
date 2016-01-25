@@ -13,7 +13,7 @@
  */
  
 
-
+#include <Sleep_n0m1.h>
 #include <SPI.h>
 #include "nRF24L01.h"
 #include "RF24.h"
@@ -48,11 +48,12 @@ const char* role_friendly_name[] = { "invalid", "Ping out", "Pong back"};  // Th
 //Setup role
 //
 
-role_e role = role_ping_out;                                              // The role of the current running sketch
-//role_e role = role_pong_back;
+//role_e role = role_ping_out;                                              // The role of the current running sketch
+role_e role = role_pong_back;
 
 // A single byte to keep track of the data being sent back and forth
 byte counter = 1;
+byte sendIntervall = 1; 
 
 struct bojenData{
   unsigned long _micros;
@@ -65,18 +66,19 @@ struct bojenData{
 
 struct serverResponse{
   byte counter;
-}response;
+  byte sleep;
+  byte sendIntervall;
+} response;
 
+Sleep sleep;
 
 void setup(){
 
   Serial.begin(115200);
   printf_begin();
-  //Serial.print(F("\n\rRF24/examples/pingpair_ack/\n\rROLE: "));
-  Serial.println(role_friendly_name[role]);
-  //Serial.println(F("*** PRESS 'T' to begin transmitting to the other node"));
 
-  // Setup and configure rf radio
+  Serial.println(role_friendly_name[role]);
+
 
   radio.begin();
   radio.setAutoAck(1);                    // Ensure autoACK is enabled
@@ -84,8 +86,8 @@ void setup(){
   radio.setRetries(0,15);                 // Smallest time between retries, max no. of retries
   //radio.setPayloadSize(1);                // Here we are sending 1-byte payloads to test the call-response speed
 
-  data.counter =1;
-  response.counter=1;
+  data.counter = 1;
+  response.counter = 1;
   
   if(role == role_ping_out){
     Serial.println("Setting up ping out role, bojen");
@@ -96,7 +98,6 @@ void setup(){
     radio.openWritingPipe(pipes[0]);        // Both radios listen on the same pipes by default, and switch when writing
     radio.openReadingPipe(1,pipes[1]);
   }
-  
   
   radio.startListening();                 // Start listening
   radio.printDetails();                   // Dump the configuration of the rf unit for debugging
@@ -116,31 +117,60 @@ void loop(void) {
     Serial.println(data.counter);
     
     radio.stopListening();                                  // First, stop listening so we can talk.
-         
-    unsigned long start_time = micros();                          // Take the time, and send it.  This will block until complete   
-                                                            //Called when STANDBY-I mode is engaged (User is finished sending)
-    if (!radio.write( &data, sizeof(data))){
-      Serial.println(F("failed."));      
-    }else{
-
-      if(!radio.available()){ 
-        Serial.println(F("Blank Payload Received.")); 
+    byte messageSent=0;
+    byte retries =0;
+    
+    while(!messageSent){
+      unsigned long start_time = micros();                          // Take the time, and send it.  This will block until complete   
+                                                              //Called when STANDBY-I mode is engaged (User is finished sending)
+      if(retries>0){
+        Serial.print("Retrying : ");
+        Serial.println(retries);
+      }
+      
+      if (!radio.write( &data, sizeof(data))){
+        Serial.println(F("failed."));      
       }else{
-        while(radio.available() ){
-          unsigned long end_time = micros();
-          radio.read( &response, sizeof(response) );
-          //printf("Got response %d, round-trip delay: %lu microseconds\n\r",response.counter,end_time-start_time);
-          Serial.print("Got response ");
-          Serial.print(response.counter);
-          Serial.print(" , round-trip delay: ");
-          Serial.println(end_time-start_time);
-          data.counter++;
+  
+        if(!radio.available()){
+          Serial.println(F("Blank Payload Received.")); 
+        }else{
+          while(radio.available() ){
+            unsigned long end_time = micros();
+            radio.read( &response, sizeof(response) );
+            
+            Serial.print("Got response ");
+            Serial.print(response.counter);
+            Serial.print(" , round-trip delay: ");
+            Serial.println(end_time-start_time);
+            data.counter++;
+            messageSent=1;
+
+            if(response.sendIntervall >0){
+              sendIntervall = response.sendIntervall;
+              Serial.print("Changing intervall to ");
+              Serial.println(sendIntervall);
+              
+            }
+          }
         }
       }
-
+      
+      if(messageSent ==0){
+        retries++;
+        Serial.print("sleeping ");
+        Serial.print(500*retries);
+        Serial.println(" ms");
+  
+        sleep.pwrDownMode();
+        sleep.sleepDelay(500*retries);
+        //delay(100);
+      }
     }
     // Try again later
-    delay(1000);
+    sleep.pwrDownMode(); //set sleep mode
+    sleep.sleepDelay(sendIntervall*1000); //sleep for: sleepTime
+    
   }
 
   // Pong back role.  Receive each packet, dump it out, and send it back
@@ -152,14 +182,14 @@ void loop(void) {
       radio.read( &data, sizeof(data) );
       
       response.counter = data.counter;
+      response.sendIntervall = 0;
       radio.writeAckPayload(pipeNo,&response, sizeof(response) );    
-       Serial.print("Received packet counter : ");
+      Serial.print("Received packet counter : ");
       Serial.print(data.counter);
       Serial.print(" , temperature : ");
       Serial.println(data.temp);
-      //response.counter++;
+      
    }
-
      
  }
 
