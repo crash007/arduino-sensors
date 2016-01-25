@@ -18,7 +18,9 @@
 #include <Wire.h>
 
 //#define RES 16384
-#define RES 16384
+//#define RES 16384
+#define RES 8192
+#define ACC_SCALE 0b00010000
 
 /* IMU Data */
 double accX, accY, accZ,acc;
@@ -50,7 +52,7 @@ void setup() {
   i2cData[1] = 0x00; // Disable FSYNC and set 260 Hz Acc filtering, 256 Hz Gyro filtering, 8 KHz sampling
   i2cData[2] = 0x00; // Set Gyro Full Scale Range to ±250deg/s
   //i2cData[3] = 0x00; // Set Accelerometer Full Scale Range to ±2g
-  i2cData[3] = 0b00000000;
+  i2cData[3] = ACC_SCALE;
   while (i2cWrite(0x19, i2cData, 4, false)); // Write to all four registers at once
   while (i2cWrite(0x6B, 0x01, true)); // PLL with X axis gyroscope reference and disable sleep mode
 
@@ -99,7 +101,7 @@ void setup() {
   Serial.print("OffsetZ: ");
   Serial.println(offsetZ);
 
-  delay(3000);
+  delay(4000);
   
   timer = micros();
 
@@ -174,6 +176,6 @@ void loop() {
 #endif
 
   //Serial.print("\r\n");
-  delay(18);
+  delay(38);
 
 }
